@@ -1,0 +1,1093 @@
+/*avlt.h*/
+
+//
+// Threaded AVL tree
+//
+
+#pragma once
+
+#include <iostream>
+#include <vector>
+#include <stack>
+#include <algorithm>
+
+using namespace std;
+
+template<typename KeyT, typename ValueT>
+class avlt
+{
+private:
+  struct NODE
+  {
+    KeyT   Key;
+    ValueT Value;
+    NODE*  Left;
+    NODE*  Right;
+    bool   isThreaded; // true => Right is a thread, false => non-threaded
+    int    Height;     // height of tree rooted at this node
+  };
+
+  NODE* Root;  // pointer to root node of tree (nullptr if empty)
+  int   Size;  // # of nodes in the tree (0 if empty)
+  NODE* curPosition;//stores values to use in next 
+  
+  
+  void  NODECheck(NODE *cur, string node)// debugging.
+  {
+   if (cur == nullptr)
+   {
+   cout<< node << "is a nullptr"<< endl;
+   }
+   else 
+   {
+   cout << node << " == "<< cur->Key << ","<< cur->Value<<","<<cur->Height<<endl;
+   }
+  }
+   void _COPYinsert(KeyT key, ValueT value ) // this is make copy easyer. 
+  {
+    NODE* prev = nullptr;
+    NODE* curr = Root;
+    stack<NODE*> nodes;
+    
+    while(curr != nullptr  )// search tree to see if the key exception
+      {
+        
+        if (key == curr->Key  )  
+      {
+       return;
+      }
+      
+     nodes.push(curr); // this is where we push back in the nodes we had visited.
+     
+      if (key < curr->Key)
+      { // search left:
+        prev = curr;
+        curr = curr->Left;
+      }
+      else
+      {
+         if (curr->isThreaded)
+         {
+         prev = curr;
+          curr = nullptr;
+         }
+         else 
+         {
+         prev = curr;
+        curr = curr->Right;
+        }
+        }
+     
+      }
+     NODE* newNode = new NODE(); // new node to add
+     newNode->Left = nullptr;
+     newNode->Right = nullptr;
+     newNode->Height = 0;
+     newNode->Key = key;
+     newNode->Value = value;
+    
+      // adding on the new node
+ if (prev == nullptr){
+      Root = newNode;
+     }
+ else if (key < prev->Key)
+ {
+      prev->Left = newNode;
+      newNode->isThreaded = true;
+      newNode->Right = prev;
+      
+      
+      }
+      
+else
+{
+if (prev->isThreaded == true)
+{
+   
+    newNode->isThreaded = true;
+    newNode->Right = prev->Right;
+    prev->Right = newNode;
+    prev->isThreaded = false;
+    
+
+    
+}
+else {
+      prev->Right = newNode;
+      newNode->isThreaded = true;
+      }
+      }
+      // increasing size of the tree
+      
+      Size++;
+     
+     
+    
+     
+     int LH = -1;
+     int HR = -1;
+     int newH;
+      
+      NODE* cur = nullptr;
+      
+     while(!nodes.empty())
+     {
+       cur = nodes.top();
+       nodes.pop();
+       
+        if(cur->Left != nullptr)
+          {
+             LH = cur->Left->Height;
+          }
+          
+        if(_getRight(cur) != nullptr)
+         {
+             HR = cur->Right->Height; 
+         }
+        
+
+        newH =  1 + max(LH , HR);
+      
+     
+        if (cur->Height == newH)
+        {
+       break;
+        ;
+        
+        }
+        else if (balance(cur) >= -1 && balance(cur) <= 1){
+         cur->Height = newH;
+    
+         }
+         }
+         }
+  void _copy(NODE* cur) // post inOrder.
+{
+
+if(cur == nullptr)
+{
+return;
+}
+
+_COPYinsert(cur->Key , cur->Value);
+_copy(cur->Left);
+if (cur->isThreaded == false)
+{
+_copy(cur->Right);
+}
+
+}
+
+
+
+NODE* _getRight(NODE* cur) const// get right so I dont have to make a million if statements
+{
+ if(cur->isThreaded)
+ {
+   return nullptr;
+ }
+ else 
+ {
+   return cur->Right ;
+ }
+
+}
+
+void _RightRotate(NODE* Parent, NODE* N)    // this is a right rotate 
+  {
+  
+    
+     NODE* R = N->Left;
+     NODE* A = R->Left;
+     NODE* B = _getRight(R); 
+     NODE* C = _getRight(N);
+     
+//  NODECheck(A,"A");
+//  NODECheck(B,"B");
+//  NODECheck(C,"C");
+//  NODECheck(R,"R");
+//  NODECheck(N,"N");
+ 
+     R->Right = N;
+     N->Left = B;
+     
+  
+      
+      
+      
+      
+      if( B != nullptr)
+  {
+   R->isThreaded = false;
+   N->isThreaded = false;
+if (B->isThreaded)
+   B->Right = N;
+   else {
+   ;
+   }
+  }
+  else 
+  {
+
+   R->isThreaded = false;
+  //N->isThreaded = true;
+   
+  }
+    
+     if (Parent == nullptr)
+     {
+        Root = R;
+     }
+     else if (R->Key < Parent ->Key)
+     Parent->Left = R;
+     else {
+      Parent->Right = R ; 
+     }
+     
+     int ha; 
+     int hb;
+     int hc;
+     if (A == nullptr){
+      ha = -1;
+     }
+     else{ 
+     
+     ha = A->Height;
+     }
+       if ( B == nullptr){
+      hb = -1;
+     }
+     else {
+      
+     hb = B->Height;
+     }
+     
+       if (C == nullptr){
+      hc= -1;
+     }
+     else {
+      
+     hc = C -> Height;
+     }
+     
+     N->Height = 1 + max(hb,hc);
+    R->Height = 1 + max(ha, N->Height);
+ // cout << "this is the height of N" << N->Height<< endl;
+// cout << "this is the height of R" << R->Height<< endl;
+ 
+    
+  }
+   void _LeftRotate(NODE* Parent, NODE* N)// this is a LEFT rotate
+  {
+     
+     NODE* L = _getRight(N);
+     NODE* A = N->Left;
+     NODE* B = L->Left;
+     NODE* C =_getRight(L);
+//   NODECheck(A,"A");
+//   NODECheck(B,"B");
+//   NODECheck(C,"C");
+//   NODECheck(L,"L");
+//   NODECheck(N,"N");
+     L->Left = N;
+     N->Right = B;
+  
+   if( B != nullptr)
+  { 
+//  L->isThreaded = false;
+   N->isThreaded = false;
+  if ( B->isThreaded)
+   B->Right = L;
+   else {
+   ;
+   }
+   
+  }
+  else 
+  {
+   N->isThreaded = true;
+   N->Right = L;
+   }
+//    cout << "------this is under the b thread check-------" << endl;
+   
+//  NODECheck(A,"A");
+//  NODECheck(B,"B");
+//  NODECheck(C,"C");
+//  NODECheck(L,"L");
+//  NODECheck(N,"N");
+  
+ 
+     if (Parent == nullptr)
+     {
+        Root = L;
+       
+     }
+else{
+        if (L->Key > Parent ->Key)
+        {
+             Parent->Right = L;
+        }
+             else {
+                  Parent->Left = L; 
+                 } 
+    
+     }
+     int ha; 
+     int hb;
+     int hc;
+     if (A == nullptr){
+      ha = -1;
+     }
+     else{ 
+     ha = A->Height;
+     }
+       if ( B == nullptr){
+      hb = -1;
+     }
+     else {
+     hb = B->Height;
+     }
+     
+       if (C == nullptr){
+      hc= -1;
+     }
+     else {
+     hc = C->Height;
+     }
+     
+     N->Height = 1 + max(hb,ha);
+    L->Height = 1 + max(hc , N->Height);
+//   cout << "this is the height of N :" << N->Height<< endl;
+//   cout << "this is the height of L :" << L->Height<< endl;
+ 
+}
+  
+ int balance(NODE* cur) // this is check the balance at any givin NODE.
+  {
+  int curB;
+  int curLH;
+  int curRH;
+  if(cur->Left == nullptr){
+  curLH = -1;
+  }
+    else 
+    {
+     curLH = cur->Left->Height;
+     }
+  if(_getRight(cur) == nullptr){
+  curRH = -1;
+  }
+    else 
+    {
+     curRH= _getRight(cur)->Height;
+     }
+  
+      if(cur == nullptr)
+      curB = 0;
+    else 
+     curB = curLH - curRH;
+     
+     return curB;
+      
+      
+  }
+  
+  
+  
+  
+  void _bstt(NODE* cur) // destructor
+  {
+  if (cur == nullptr)
+  {
+  return; 
+  }
+  else{
+ 
+  _bstt(cur->Left);
+  if(!cur->isThreaded)
+  {
+   _bstt(cur->Right);
+  }
+  
+    delete cur;
+    }
+
+  }
+  
+  
+  void _dump(NODE* cur ,ostream& output) const // this is a helper to print the tree.
+{
+
+   if(cur == nullptr){
+   return;
+   }
+   else {
+   _dump(cur->Left,output );
+     if(_getRight(cur) == nullptr && cur->Right != nullptr) {
+     
+       output <<"("<< cur->Key << ","<< cur->Value << "," << cur->Height<<"," <<cur->Right->Key << ")"<<endl;
+       }
+      else {
+      output <<"("<< cur->Key << ","<< cur->Value<< "," << cur->Height <<")"<<endl;
+          }
+          _dump(_getRight(cur),output );
+   }
+}
+ 
+      
+
+public:
+  //
+  // default constructor:
+  //
+  // Creates an empty tree.
+  //
+  avlt()
+  {
+    Root = nullptr;
+    Size = 0;
+   curPosition = nullptr;
+  }
+
+  //
+  // copy constructor
+  //
+  // NOTE: makes an exact copy of the "other" tree, such that making the
+  // copy requires no rotations.
+  //
+  avlt (const avlt& other)
+  {
+  this->Root = nullptr;
+  this->Size = 0;
+  _copy(other.Root);
+  }
+
+	//
+  // destructor:
+  //
+  // Called automatically by system when tree is about to be destroyed;
+  // this is our last chance to free any resources / memory used by
+  // this tree.
+  //
+  virtual ~avlt()
+  {
+    _bstt(Root);
+  }
+
+  //
+  // operator=
+  //
+  // Clears "this" tree and then makes a copy of the "other" tree.
+  //
+  // NOTE: makes an exact copy of the "other" tree, such that making the
+  // copy requires no rotations.
+  //
+  avlt& operator=(const avlt& other)
+  {
+  this->clear();
+   
+   _copy(other.Root);
+
+    return *this;
+  }
+
+  //
+  // clear:
+  //
+  // Clears the contents of the tree, resetting the tree to empty.
+  //
+  void clear() // deletes the tree and makes room for a new one.
+  {
+    if(Root == nullptr){
+ return;
+ }
+  _bstt(Root);
+  Root = nullptr;
+   Size = 0;
+  }
+
+  // 
+  // size:
+  //
+  // Returns the # of nodes in the tree, 0 if empty.
+  //
+  // Time complexity:  O(1) 
+  //
+  int size() const
+  {
+    return Size;
+  }
+
+  // 
+  // height:
+  //
+  // Returns the height of the tree, -1 if empty.
+  //
+  // Time complexity:  O(1) 
+  //
+  int height() const
+  {
+    if (Root == nullptr)
+      return -1;
+    else
+      return Root->Height;
+  }
+
+  // 
+  // search:
+  //
+  // Searches the tree for the given key, returning true if found
+  // and false if not.  If the key is found, the corresponding value
+  // is returned via the reference parameter.
+  //
+  // Time complexity:  O(lgN) worst-case
+  //
+  bool search(KeyT key, ValueT& value) const
+  {
+  NODE* cur = Root;
+   if(cur == nullptr)// if the root is null
+   {
+       return false;
+   }
+   while(cur != nullptr)// while
+    {
+          if(key == cur->Key)//FOUND!!!!!
+        {
+        value = cur->Value;
+        return true;
+        }
+          else 
+          {
+              if(key < cur->Key)
+              {
+                  cur= cur->Left;
+              }
+               else 
+               {
+                cur = _getRight(cur);
+               }
+          
+          }
+    
+    
+    }// while 
+    return false;
+  }
+
+  //
+  // range_search
+  //
+  // Searches the tree for all keys in the range [lower..upper], inclusive.
+  // It is assumed that lower <= upper.  The keys are returned in a vector;
+  // if no keys are found, then the returned vector is empty.
+  //
+  // Time complexity: O(lgN + M), where M is the # of keys in the range
+  // [lower..upper], inclusive.
+  //
+  // NOTE: do not simply traverse the entire tree and select the keys
+  // that fall within the range.  That would be O(N), and thus invalid.
+  // Be smarter, you have the technology.
+  //
+  vector<KeyT> range_search(KeyT lower, KeyT upper)
+  {
+    vector<KeyT>  keys;
+     NODE* temp = nullptr; // incase we fall out of the tree
+    NODE* cur = Root;//
+    if(cur == nullptr)// base cases 
+    {
+     return keys; 
+    }
+    if(lower > upper)
+    {
+     return keys;
+    }
+    
+     while(cur != nullptr) // while loop
+     {
+   
+       if(cur->Key == lower)
+       {
+   
+   curPosition = cur; // setting lower
+        if(lower == upper)
+        {
+         keys.push_back(cur->Key);
+         return keys;
+           }
+     break; 
+       }
+        else 
+        { 
+             if(cur->Key > lower)// this is to find lower and set a temp incase it bombs out.
+             {
+             temp = cur;
+              cur = cur->Left;
+              
+             }
+            else 
+           {
+              temp = cur;
+              cur =_getRight(cur);
+            
+            }
+         }
+       }// while 
+       
+   if(cur == nullptr)     
+   {
+   curPosition = temp;
+   cur = temp;
+   }
+    
+     
+      KeyT key;
+      
+      while(curPosition != nullptr)
+      {
+      key = curPosition->Key;
+      if(key <= upper && key >= lower)
+       {
+       keys.push_back(key);
+       }
+       if(key > upper)
+       {
+       break;
+       }
+    next(key);
+     
+       
+    
+     }// while loop
+
+    return keys;
+  }
+
+  //
+  // insert
+  //
+  // Inserts the given key into the tree; if the key has already been insert then
+  // the function returns without changing the tree.  Rotations are performed
+  // as necessary to keep the tree balanced according to AVL definition.
+  //
+  // Time complexity:  O(lgN) worst-case
+  //
+  void insert(KeyT key, ValueT value)
+  {
+    NODE* prev = nullptr;
+    NODE* curr = Root;
+    
+    stack<NODE*> nodes; // this is to travers and get the heights
+    
+    while(curr != nullptr  )// search tree to see if the key exception
+      {
+        
+        if (key == curr->Key  )  
+      {
+       return;
+      }
+      
+     nodes.push(curr);
+     
+      if (key < curr->Key)
+      { // search left:
+        prev = curr;
+        curr = curr->Left;
+      }
+      else
+      {
+         if (curr->isThreaded)
+         {
+         prev = curr;
+          curr = nullptr;
+         }
+         else 
+         {
+         prev = curr;
+        curr = curr->Right;
+        }
+        }
+     
+      }
+     NODE* newNode = new NODE(); // new node to add
+     newNode->Left = nullptr;
+     newNode->Right = nullptr;
+     newNode->Height = 0;
+     newNode->Key = key;
+     newNode->Value = value;
+    
+      // adding on the new node
+ if (prev == nullptr){
+      Root = newNode;
+     }
+ else if (key < prev->Key)
+ {
+      prev->Left = newNode;
+      newNode->isThreaded = true;
+      newNode->Right = prev;
+      
+      
+      }
+      
+else
+{
+if (prev->isThreaded == true)
+{
+   
+    newNode->isThreaded = true;
+    newNode->Right = prev->Right;
+    prev->Right = newNode;
+    prev->isThreaded = false;
+    
+
+    
+}
+else {
+      prev->Right = newNode;
+      newNode->isThreaded = true;
+      }
+      }
+      // increasing size of the tree
+      
+      Size++;
+     
+     
+    
+     
+     int LH = -1;// left height assuming it is a nullptr
+     int HR = -1;// Right height assuming it is a nullptr
+     int newH; // balance of the new node
+      
+      NODE* cur = nullptr;
+      NODE* parent = nullptr;
+     while(!nodes.empty()) // to fill in Left hight and right height
+     {
+       cur = nodes.top();
+       nodes.pop();
+       if(nodes.empty() == true){
+      parent = nullptr;
+       }
+       if(nodes.empty() == false){
+     parent = nodes.top();
+       }
+        if(cur->Left != nullptr)
+          {
+             LH = cur->Left->Height;
+          }
+          
+        if(_getRight(cur) != nullptr)
+         {
+             HR = cur->Right->Height; 
+         }
+  //       cout << "this LEFT HEIGHT : " << LH<< endl;
+//  cout << "this is RIGHT HEIGHT :" << HR<< endl;
+ 
+
+        newH =  1 + max(LH,HR);
+      
+       // cout<< "this is the night of the node: "<< newH << endl;
+        if (cur->Height == newH)
+        {
+      // cout << "Breakkkkkk"<< endl;
+       break;
+        ;
+        
+        }
+        else if (balance(cur) >= -1 && balance(cur) <= 1){
+         cur->Height = newH;
+      // cout <<"curs HIEGHT: " <<newH<< endl;
+         }
+        else{
+       
+//           cout << "balance "<< balance(cur)<<endl;
+//          cout<< "Root " << Root->Key << endl;
+       if(LH > HR )//case 1 and 2
+         {  
+         
+           if(balance(cur->Left) < 0){ // to check if the tree is broken left right heavey
+                 //case2 
+               //  cout << "case 2"<< endl;
+               //  cout << "this is the node that it broke on "<<cur->Key << endl;
+                _LeftRotate(cur, cur->Left);
+                _RightRotate(parent, cur);
+                 
+              }
+               else{
+               //case 1
+               // cout << "case 1"<< endl;
+                _RightRotate(parent,cur);// to check if the tree is broken left and left hevery heavey
+         
+              }
+         }
+        else 
+         {
+               //cout << "case 3"<< endl;
+             if(balance(_getRight(cur)) > 0)// to check if the tree is broken right and left heavey
+              {
+            //case 3
+              _RightRotate(cur,_getRight(cur));
+                 _LeftRotate(parent,cur);
+              
+              }
+              else
+              {
+              
+             //case 4 
+             // cout << "case 4"<< endl;
+             _LeftRotate(parent, cur);// to check if the tree is broken right and right heavey
+                
+              
+             
+              }
+     
+         }
+         }// big else 
+     }//while stack
+    
+      
+  }//functiom
+
+  //
+  // []
+  //
+  // Returns the value for the given key; if the key is not found,
+  // the default value ValueT{} is returned.
+  //
+  // Time complexity:  O(lgN) worst-case
+  //
+  ValueT operator[](KeyT key) const
+  {
+    ValueT val;
+    if(search(key,val) == true)
+    {
+      return val;
+    }
+
+   
+    return ValueT{ };
+  }
+
+  //
+  // ()
+  //
+  // Finds the key in the tree, and returns the key to the "right".
+  // If the right is threaded, this will be the next inorder key.
+  // if the right is not threaded, it will be the key of whatever
+  // node is immediately to the right.
+  //
+  // If no such key exists, or there is no key to the "right", the
+  // default key value KeyT{} is returned.
+  //
+  // Time complexity:  O(lgN) worst-case
+  //
+  KeyT operator()(KeyT key) const
+  {
+     NODE* cur = Root;
+    while (cur != nullptr)
+    {
+      if (key == cur->Key ) 
+      {
+          if(cur ->Right != nullptr)
+          {
+        return cur->Right->Key;
+        }
+        else
+        { 
+        return KeyT{};
+        }
+      }
+
+      if (key < cur->Key)
+      {
+        // search left:
+      
+        cur = cur->Left;
+      }
+      else
+      {
+        if (!cur->isThreaded)
+          cur = cur->Right;
+        else 
+       return KeyT{ };
+      }
+    }//while
+    
+
+    return KeyT{ };
+  }
+
+  //
+  // %
+  //
+  // Returns the height stored in the node that contains key; if key is
+  // not found, -1 is returned.
+  //
+  // Example:  cout << tree%12345 << endl;
+  //
+  // Time complexity:  O(lgN) worst-case
+  //
+  int operator%(KeyT key) const
+  {
+    NODE* cur = Root;
+   if(cur == nullptr)// if the root is null
+   {
+       return -1;
+   }
+   while(cur != nullptr)// while
+    {
+          if(key == cur->Key)//FOUND!!!!!
+        {
+       
+        return cur->Height;
+        }
+          else 
+          {
+              if(key < cur->Key)
+              {
+                  cur= cur->Left;
+              }
+               else 
+               {
+                cur = _getRight(cur);
+               }
+          
+          }
+    
+    
+    }// while 
+
+    return -1;
+  }
+
+  //
+  // begin
+  //
+  // Resets internal state for an inorder traversal.  After the 
+  // call to begin(), the internal state denotes the first inorder
+  // key; this ensure that first call to next() function returns
+  // the first inorder key.
+  //
+  // Space complexity: O(1)
+  // Time complexity:  O(lgN) worst-case
+  //
+  // Example usage:
+  //    tree.begin();
+  //    while (tree.next(key))
+  //      cout << key << endl;
+  //
+  void begin()
+  {
+ if(Root == nullptr)
+    {
+    return;
+    }
+  NODE* cur = Root;
+  
+    while(cur->Left != nullptr)
+    {
+     cur = cur->Left;
+    }
+    curPosition = cur ;
+  }
+
+  //
+  // next
+  //
+  // Uses the internal state to return the next inorder key, and 
+  // then advances the internal state in anticipation of future
+  // calls.  If a key is in fact returned (via the reference 
+  // parameter), true is also returned.
+  //
+  // False is returned when the internal state has reached null,
+  // meaning no more keys are available.  This is the end of the
+  // inorder traversal.
+  //
+  // Space complexity: O(1)
+  // Time complexity:  O(lgN) worst-case
+  //
+  // Example usage:
+  //    tree.begin();
+  //    while (tree.next(key))
+  //      cout << key << endl;
+  //
+  bool next(KeyT& key)
+  {
+   if(curPosition == nullptr)
+  {
+  return false;
+  }
+   NODE* cur = curPosition;
+
+  //key = cur -> Key;
+
+  if(cur == nullptr)
+  {
+   return false;
+  }
+  else if (cur->isThreaded && cur->Right != nullptr){
+      key = cur -> Key;
+      cur = cur->Right;
+      curPosition = cur;
+      return true;
+  }
+  else if(cur->Right == nullptr){
+      key = cur -> Key;
+      cur = nullptr;
+      curPosition = cur;
+      return true;
+  }
+
+  else
+  {
+       key = cur -> Key;
+       cur = cur->Right;
+       curPosition = cur;
+
+  while(cur->Left != nullptr)
+  {
+      cur = cur->Left;
+      curPosition = cur;
+
+  }
+return true;
+
+  }
+
+
+  return false;
+  }
+  
+
+  //key = cur -> Key;
+
+ 
+
+  //
+  // dump
+  // 
+  // Dumps the contents of the tree to the output stream, using a
+  // recursive inorder traversal.
+  //
+  void dump(ostream& output) const
+  {
+    output << "**************************************************" << endl;
+    output << "********************* AVLT ***********************" << endl;
+
+    output << "** size: " << this->size() << endl;
+    output << "** height: " << this->height() << endl;
+
+    //
+    // inorder traversal, with one output per line: either 
+    // (key,value,height) or (key,value,height,THREAD)
+    //
+    // (key,value,height) if the node is not threaded OR thread==nullptr
+    // (key,value,height,THREAD) if the node is threaded and THREAD denotes the next inorder key
+    //
+ if(Root == nullptr){
+    output << "NO TREE" << endl;
+    }
+     _dump(Root, output);
+
+    output << "**************************************************" << endl;
+  }
+	
+};
